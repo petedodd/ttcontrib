@@ -1,3 +1,15 @@
+# plots from headless runs
+Rplots.pdf
+
+#mac users
+.DS_Store
+
+# another R file to ignore
+.RDataTmp
+
+# thumbs
+Thumbs.db
+
 # History files
 .Rhistory
 .Rapp.history
