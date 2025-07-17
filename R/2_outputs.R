@@ -2,19 +2,24 @@
 library(here)
 library(data.table)
 library(ggplot2)
-library(glue)
 library(ggthemes)
 library(scales)
 library(ggpubr)
 
+## utility
 ssum <- function(x) sqrt(sum(x^2))
+cl <- colorblind_pal()(2)[2] # relevant colot
 
-## library(scales)
-## library(ggpubr)
-
-
+## data from file 1
 load(file = here("data/EC.Rdata"))
+load(file = here("data/E.Rdata"))
+load(file = here("data/agz.Rdata"))
+load(file = here("data/whokey.Rdata"))
+NS <- unique(EC[, .(iso3, acat, pop.female, pop.male)]) # convenient store
 
+## NOTE
+## output/Contacts_reg.png currently commented out:
+## requires CD data saving from 1
 
 ## restructure
 ECM <- melt(
@@ -29,7 +34,10 @@ ECM <- melt(
 )
 ECM[, type := ifelse(grepl("sd", variable), "sd", "mn")]
 ECM[, variable := gsub("\\.sd", "", variable)]
-ECM <- dcast(ECM, iso3 + g_whoregion + acat + acati + variable ~ type, value.var = "value")
+ECM <- dcast(ECM,
+  iso3 + g_whoregion + acat + acati + variable ~ type,
+  value.var = "value"
+)
 ECM[, c("qty", "to", "from") := tstrsplit(variable, split = "\\.")]
 ECM$acat <- factor(ECM$acat, levels = agz, ordered = TRUE)
 ECM$acati <- factor(ECM$acati, levels = agz, ordered = TRUE)
@@ -37,13 +45,14 @@ ECM$acati <- factor(ECM$acati, levels = agz, ordered = TRUE)
 
 
 ## merge in population for infectees
-pop <- EW[, .(iso3, acati = age_group, pop.female, pop.male)]
-pop[acati == "65plus", acati := "65+"]
+pop <- NS[, .(iso3, acati = acat, pop.female, pop.male)]
 pop <- melt(pop, id = c("iso3", "acati"))
 pop[, c("vr", "sex") := tstrsplit(variable, split = "\\.")]
-ECM <- merge(ECM, pop[, .(iso3, to = sex, acati, popto = value)], by = c("iso3", "to", "acati"))
+ECM <- merge(ECM,
+  pop[, .(iso3, to = sex, acati, popto = value)],
+  by = c("iso3", "to", "acati")
+)
 ECM[!is.finite(sd), sd := 0.1] # NOTE small nation noisy pattern safety
-
 
 ## NOTE weighted by population - assumes same beta everywhere
 ## infectees
@@ -55,10 +64,14 @@ ECG <- ECM[, .(
 by = .(acati, from, to)
 ]
 ECG[, c("tot", "tot.sd") := .(sum(ari), ssum(ari.sd))]
-ECG[, c("fari", "fari.sd") := .(ari / tot, (ari / tot) * sqrt((ari.sd / ari)^2 + (tot.sd / tot)^2))]
+ECG[, c("fari", "fari.sd") :=
+        .(ari / tot, (ari / tot) * sqrt((ari.sd / ari)^2 + (tot.sd / tot)^2))]
 ECG$acati <- factor(ECG$acati, levels = agz, ordered = TRUE)
 TXT <- ECG[, .(tot = sum(ari)), by = .(acati, to)]
-TXT <- merge(ECG[, .(acati, from, to, ari, fari, fari.sd)], TXT, by = c("acati", "to")) #
+TXT <- merge(ECG[, .(acati, from, to, ari, fari, fari.sd)],
+  TXT,
+  by = c("acati", "to")
+)
 TXT <- TXT[from == "male"]
 TXT[acati == "65+" & to == "male", fari := fari - 1e-3]
 TXT[, pcnt := paste0(format(round(100 * ari / tot)), "%")]
@@ -67,15 +80,13 @@ TXT[, pcnt := paste0(format(round(100 * ari / tot)), "%")]
 ## check
 ECG[to == "male", sum(ari)] / ECG[to == "female", sum(ari)]
 ECG[from == "male", sum(ari)] / ECG[from == "female", sum(ari)]
-CD[, mean(ctx), by = acato]
-CD[, mean(ctx), by = acati]
+## CD[, mean(ctx), by = acato]
+## CD[, mean(ctx), by = acati]
 
 
 ## CI data
 ECGT <- ECG[, .(fari = sum(fari), fari.sd = ssum(fari.sd)), by = .(acati, to)]
 ECGT[, from := "male"]
-
-cl <- colorblind_pal()(2)[2] # relevant colot
 
 
 ## NOTE most favoured
@@ -84,7 +95,8 @@ GPa <- ggplot(ECG, aes(acati, fari, fill = from)) +
   scale_fill_colorblind() +
   geom_errorbar(
     data = ECGT,
-    aes(ymin = fari - 1.96 * fari.sd, ymax = fari + 1.96 * fari.sd), width = 0, col = 2
+    aes(ymin = fari - 1.96 * fari.sd, ymax = fari + 1.96 * fari.sd),
+    width = 0, col = 2
   ) +
   facet_wrap(~to) +
   theme_linedraw() +
@@ -115,14 +127,20 @@ ggsave(file = here("output/ARI_to_stretch.png"), w = 10, h = 5)
 
 ## ==== conditional by sex
 ECG[, c("tots", "tots.sd") := .(sum(ari), ssum(ari.sd)), by = to]
-ECG[, c("faris", "faris.sd") := .(ari / tots, (ari / tots) * sqrt((ari.sd / ari)^2 + (tots.sd / tots)^2))]
+ECG[, c("faris", "faris.sd") :=
+  .(ari / tots, (ari / tots) * sqrt((ari.sd / ari)^2 + (tots.sd / tots)^2))]
 TXTs <- ECG[, .(tots = sum(ari)), by = .(acati, to)]
-TXTs <- merge(ECG[, .(acati, from, to, ari, faris, faris.sd)], TXTs, by = c("acati", "to"))
+TXTs <- merge(ECG[, .(acati, from, to, ari, faris, faris.sd)],
+  TXTs,
+  by = c("acati", "to")
+)
 TXTs <- TXTs[from == "male"]
 TXTs[, pcnt := paste0(format(round(100 * ari / tots)), "%")]
 
 ## CI data
-ECGTs <- ECG[, .(faris = sum(faris), faris.sd = ssum(faris.sd)), by = .(acati, to)]
+ECGTs <- ECG[, .(faris = sum(faris), faris.sd = ssum(faris.sd)),
+  by = .(acati, to)
+]
 ECGTs[, from := "male"]
 
 
@@ -133,7 +151,8 @@ ggplot(ECG, aes(acati, faris, fill = from)) +
   scale_fill_colorblind() +
   geom_errorbar(
     data = ECGTs,
-    aes(ymin = faris - 1.96 * faris.sd, ymax = faris + 1.96 * faris.sd), width = 0, col = 2
+    aes(ymin = faris - 1.96 * faris.sd, ymax = faris + 1.96 * faris.sd),
+    width = 0, col = 2
   ) +
   facet_wrap(~to) +
   theme_linedraw() +
@@ -165,12 +184,16 @@ ECM0 <- melt(
 ECM0[, type := ifelse(grepl("sd", variable), "sd", "mn")]
 ECM0[, variable := gsub("\\.sd", "", variable)]
 ECM0[, variable := gsub("0", "", variable)]
-ECM0 <- dcast(ECM0, iso3 + g_whoregion + acat + acati + variable ~ type, value.var = "value")
+ECM0 <- dcast(ECM0, iso3 + g_whoregion + acat + acati + variable ~ type,
+  value.var = "value"
+)
 ECM0[, c("qty", "to", "from") := tstrsplit(variable, split = "\\.")]
 ECM0$acat <- factor(ECM0$acat, levels = agz, ordered = TRUE)
 ECM0$acati <- factor(ECM0$acati, levels = agz, ordered = TRUE)
 ## merge in population for infectees
-ECM0 <- merge(ECM0, pop[, .(iso3, to = sex, acati, popto = value)], by = c("iso3", "to", "acati"))
+ECM0 <- merge(ECM0, pop[, .(iso3, to = sex, acati, popto = value)],
+  by = c("iso3", "to", "acati")
+)
 ECM0[!is.finite(sd), sd := 0.1] # NOTE small nation noisy pattern safety
 
 
@@ -195,7 +218,8 @@ by = .(acati, acat, from, to)
 ]
 
 ECGL[, c("tot", "tot.sd") := .(sum(ari), ssum(ari.sd))]
-ECGL[, c("fari", "fari.sd") := .(ari / tot, (ari / tot) * sqrt((ari.sd / ari)^2 + (tot.sd / tot)^2))]
+ECGL[, c("fari", "fari.sd") :=
+  .(ari / tot, (ari / tot) * sqrt((ari.sd / ari)^2 + (tot.sd / tot)^2))]
 ECGL[!is.finite(fari.sd), fari.sd := 0] # kids manually 0
 
 ## utility function to format X / Y as percent
@@ -204,43 +228,66 @@ XoYpc <- function(num, den) {
   mid.sd <- mid * sqrt((num$fari.sd / num$fari)^2 + (den$fari.sd / den$fari)^2)
   hi <- min(1, mid + 1.96 * mid.sd)
   lo <- max(0, mid - 1.96 * mid.sd)
-  paste0(format(round(100 * mid)), "% (", format(round(100 * lo)), "% to ", format(round(100 * hi)), "%)")
+  paste0(
+    format(round(100 * mid)),
+    "% (", format(round(100 * lo)),
+    "% to ", format(round(100 * hi)), "%)"
+  )
 }
 
 
 ## NOTE fraction of everyone that are male adults
-NS[!age_group %in% c("0-4", "5-14"), sum(pop.male)] / NS[, sum(pop.total)] # 37 % of population
+NS[!acat %in% c("0-4", "5-14"), sum(pop.male)] /
+  pop[, sum(pop.male + pop.female)] # 37 % of population
 
 
 ## out text
 outtxt <- list()
 
 ## to men
-den <- ECGL[to == "male" & !acati %in% c("0-4", "5-14"), .(fari = sum(fari), fari.sd = ssum(fari.sd))]
+den <- ECGL[
+  to == "male" & !acati %in% c("0-4", "5-14"),
+  .(fari = sum(fari), fari.sd = ssum(fari.sd))
+]
 num <- ECGL[
   from == "male" & !acat %in% c("0-4", "5-14") & # from men
     to == "male" & !acati %in% c("0-4", "5-14"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[1]] <- data.table(qty = "% infections to men, from men", value = XoYpc(num, den))
+outtxt[[1]] <- data.table(
+  qty = "% infections to men, from men",
+  value = XoYpc(num, den)
+)
 
 ## to women
-den <- ECGL[to == "female" & !acati %in% c("0-4", "5-14"), .(fari = sum(fari), fari.sd = ssum(fari.sd))]
+den <- ECGL[
+  to == "female" & !acati %in% c("0-4", "5-14"),
+  .(fari = sum(fari), fari.sd = ssum(fari.sd))
+]
 num <- ECGL[
   from == "male" & !acat %in% c("0-4", "5-14") & # from men
     to == "female" & !acati %in% c("0-4", "5-14"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[2]] <- data.table(qty = "% infections to women, from men", value = XoYpc(num, den))
+outtxt[[2]] <- data.table(
+  qty = "% infections to women, from men",
+  value = XoYpc(num, den)
+)
 
 ## to kids
-den <- ECGL[acati %in% c("0-4", "5-14"), .(fari = sum(fari), fari.sd = ssum(fari.sd))]
+den <- ECGL[
+  acati %in% c("0-4", "5-14"),
+  .(fari = sum(fari), fari.sd = ssum(fari.sd))
+]
 num <- ECGL[
   from == "male" & !acat %in% c("0-4", "5-14") & # from men
     acati %in% c("0-4", "5-14"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[3]] <- data.table(qty = "% infections to children, from men", value = XoYpc(num, den))
+outtxt[[3]] <- data.table(
+  qty = "% infections to children, from men",
+  value = XoYpc(num, den)
+)
 
 ## to anyone
 den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
@@ -248,7 +295,10 @@ num <- ECGL[
   from == "male" & !acat %in% c("0-4", "5-14"), # from men
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[4]] <- data.table(qty = "% infections, from men", value = XoYpc(num, den))
+outtxt[[4]] <- data.table(
+  qty = "% infections, from men",
+  value = XoYpc(num, den)
+)
 
 ## to anyone, from 25-44
 den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
@@ -256,7 +306,10 @@ num <- ECGL[
   from == "male" & acat %in% c("25-34", "35-44"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[5]] <- data.table(qty = "% infections, from M25-44", value = XoYpc(num, den))
+outtxt[[5]] <- data.table(
+  qty = "% infections, from M25-44",
+  value = XoYpc(num, den)
+)
 
 ## to men
 den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
@@ -264,17 +317,26 @@ num <- ECGL[
   to == "male",
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[6]] <- data.table(qty = "% infections to men ", value = XoYpc(num, den))
+outtxt[[6]] <- data.table(
+  qty = "% infections to men ",
+  value = XoYpc(num, den)
+)
 
 ## population data: fraction male adults
-val <- NS[!age_group %in% c("0-4", "5-14"), sum(pop.male)] / NS[, sum(pop.total)]
+val <- NS[
+  !acat %in% c("0-4", "5-14"),
+  sum(pop.male)
+] / NS[, sum(pop.male + pop.female)]
 outtxt[[7]] <- data.table(
   qty = "% of population men >=15",
   value = paste0(format(round(100 * val)))
 )
 
 ## population data: fraction male adults 15-44
-val <- NS[age_group %in% c("25-34", "35-44"), sum(pop.male)] / NS[, sum(pop.total)]
+val <- NS[
+  acat %in% c("25-34", "35-44"),
+  sum(pop.male)
+] / NS[, sum(pop.male + pop.female)]
 outtxt[[8]] <- data.table(
   qty = "% of population M25-44",
   value = paste0(format(round(100 * val)))
@@ -283,7 +345,10 @@ outtxt[[8]] <- data.table(
 ## counterfactual reduction
 den <- ECG1[, .(fari = ari, fari.sd = ari.sd)]
 num <- ECG0[, .(fari = ari, fari.sd = ari.sd)]
-outtxt[[9]] <- data.table(qty = "% exposure if F were M ", value = XoYpc(num, den))
+outtxt[[9]] <- data.table(
+  qty = "% exposure if F were M ",
+  value = XoYpc(num, den)
+)
 
 ## join
 outtxt <- rbindlist(outtxt)
@@ -295,7 +360,8 @@ fwrite(outtxt, file = here("output/outtxt.csv"))
 ## • regions (potentially in text)
 ## • children different?
 ## • patterns across countries: incidence?
-## • some sort of amplifier estimate: eg (proportional change in transmission) / (proportional reduction in male prevalence, eg to F)?
+## • some sort of amplifier estimate: eg (proportional change in transmission) /
+## (proportional reduction in male prevalence, eg to F)?
 pcm <- 0.64
 1 - 2 * (1 - pcm) # 28% lower
 
@@ -310,7 +376,10 @@ ECM[, unique(acati)]
 
 tmp <- ECM[iso3 == "ZAF" & to == "female" & acati == "25-34"]
 tmp <- ECM[iso3 == "VNM" & to == "female" & acati == "25-34"]
-tmp <- ECM[iso3 == "VNM" & to == "female", .(mn = sum(mn * popto)), by = .(acat, from)]
+tmp <- ECM[iso3 == "VNM" & to == "female",
+  .(mn = sum(mn * popto)),
+  by = .(acat, from)
+]
 tmp[, tot := sum(mn)]
 ggplot(tmp, aes(acat, mn / tot, col = from, group = from)) +
   geom_line()
@@ -320,12 +389,19 @@ ECGi <- ECM[, .(ari = sum(mn * popto), ari.sd = ssum(sd * popto)),
   by = .(acat, from, to)
 ] # total exposure happening, by age of source
 ECGi[, c("tots", "tots.sd") := .(sum(ari), ssum(ari.sd))]
-ECGi[, c("faris", "faris.sd") := .(ari / tots, (ari / tots) * sqrt((ari.sd / ari)^2 + (tots.sd / tots)^2))]
+ECGi[, c("faris", "faris.sd") :=
+  .(
+    ari / tots,
+    (ari / tots) * sqrt((ari.sd / ari)^2 + (tots.sd / tots)^2)
+  )]
 ECGi$acat <- factor(ECGi$acat, levels = agz, ordered = TRUE)
 
 
 ## CI data
-ECGTsi <- ECGi[, .(faris = sum(faris), faris.sd = ssum(faris.sd)), by = .(acat, to)]
+ECGTsi <- ECGi[,
+  .(faris = sum(faris), faris.sd = ssum(faris.sd)),
+  by = .(acat, to)
+]
 ECGTsi[, sum(faris)]
 ECGTsi[, from := "male"]
 
@@ -335,7 +411,8 @@ GPb <- ggplot(ECGi, aes(acat, faris, fill = from)) +
   geom_bar(stat = "identity") +
   geom_errorbar(
     data = ECGTsi,
-    aes(ymin = faris - 1.96 * faris.sd, ymax = faris + 1.96 * faris.sd), width = 0, col = 2
+    aes(ymin = faris - 1.96 * faris.sd, ymax = faris + 1.96 * faris.sd),
+    width = 0, col = 2
   ) +
   scale_fill_colorblind() +
   facet_wrap(~to) +
@@ -369,8 +446,6 @@ ECGir <- ECM[, .(ari = sum(mn * popto)),
 ] # total exposure happening, by age of source
 ECGir[, ari := ari / sum(ari), by = g_whoregion]
 ECGir$acat <- factor(ECGir$acat, levels = agz, ordered = TRUE)
-
-
 
 ggplot(ECGir, aes(acat, ari, fill = from)) +
   geom_bar(stat = "identity") +
@@ -406,21 +481,21 @@ ggplot(ECGgr, aes(g_whoregion, ari)) +
 
 ## ggsave(file=here('../plots/ARI_inreg.png'),w=6,h=5)
 
-CDS <- CD[!acati %in% kds, .(ctx = sum(ctx)), by = .(acato, g_whoregion)]
-CDS[, tot := sum(ctx), by = g_whoregion]
-CDS$acato <- factor(CDS$acato, levels = agz, ordered = TRUE)
+## CDS <- CD[!acati %in% kds, .(ctx = sum(ctx)), by = .(acato, g_whoregion)]
+## CDS[, tot := sum(ctx), by = g_whoregion]
+## CDS$acato <- factor(CDS$acato, levels = agz, ordered = TRUE)
 
-ggplot(CDS, aes(acato, ctx / tot)) +
-  geom_bar(stat = "identity") +
-  theme_linedraw() +
-  facet_wrap(~g_whoregion) +
-  scale_y_continuous(label = percent) +
-  xlab("Contactor age") +
-  ylab("Proportion of all contacts to adults from each age") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+## ggplot(CDS, aes(acato, ctx / tot)) +
+##   geom_bar(stat = "identity") +
+##   theme_linedraw() +
+##   facet_wrap(~g_whoregion) +
+##   scale_y_continuous(label = percent) +
+##   xlab("Contactor age") +
+##   ylab("Proportion of all contacts to adults from each age") +
+##   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
-ggsave(file = here("output/Contacts_reg.png"), w = 10, h = 7) # TODO BUG check
+## ggsave(file = here("output/Contacts_reg.png"), w = 10, h = 7) # TODO BUG check
 
 
 ## pc TB by region?
@@ -428,14 +503,15 @@ EG <- merge(E, whokey, by = "iso3")
 EG <- EG[, .(TB = sum(TB)), by = .(sex = toupper(sex), acat = age_group, g_whoregion)]
 EG[, sex := ifelse(sex == "F", "female", "male")]
 EG[acat == "65plus", acat := "65+"]
-popr <- merge(pop, whokey, by = "iso3")
-popr <- popr[, .(n = sum(value)), by = .(g_whoregion, sex, acat = acati)]
+
+popr <- melt(NS, id = c("iso3", "acat"))
+popr[, sex := ifelse(grepl("f", variable), "female", "male")]
+popr <- merge(popr, whokey, by = "iso3")
+popr <- popr[, .(n = sum(value)), by = .(g_whoregion, sex, acat)]
 
 EG <- merge(EG, popr, by = c("g_whoregion", "sex", "acat"))
 EG[, pcTB := 1e2 * TB / n] # pop in 1000s
 EG$acat <- factor(EG$acat, levels = agz, ordered = TRUE)
-
-
 
 ggplot(EG, aes(acat, pcTB)) +
   geom_bar(stat = "identity") +
@@ -447,4 +523,3 @@ ggplot(EG, aes(acat, pcTB)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave(file = here("output/pcTB_reg.png"), w = 10, h = 7)
-

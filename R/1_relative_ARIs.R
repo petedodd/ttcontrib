@@ -11,7 +11,13 @@ rdd <- "https://raw.githubusercontent.com/petedodd/adotb/refs/heads/main/rawdata
 there <- function(x) glue("{rdd}{x}")
 
 ## key to WHO regions
-load(url(there("whokey.Rdata"))) #from adotb repo
+fn <- here("data/whokey.Rdata")
+if (!file.exists(fn)) {
+  load(url(there("whokey.Rdata"))) # from adotb repo
+  save(whokey,file=fn)
+} else {
+  load(file = fn)
+}
 
 ## --- mixing data
 ## contact data
@@ -28,13 +34,19 @@ CD <- synthetic_contacts_2021[
 
 ## --- TB estimates
 ## read in WHO age-specific incidence
-E <- fread(there("TB_burden_age_sex_2020-10-15.csv")) #from adotb repo
-E[, unique(age_group)]
-exa <- c("all", "0-14", "15plus", "18plus") # exlude age groups
-E <- E[
-  !age_group %in% exa & risk_factor == "all",
-  .(iso3, sex, age_group, TB = best, TB.sd = (hi - lo) / 3.92)
-] # choose right age groups
+fn <- here("data/E.Rdata")
+if (!file.exists(fn)) {                                 #get if not there
+  E <- fread(there("TB_burden_age_sex_2020-10-15.csv")) # from adotb repo
+  E[, unique(age_group)]
+  exa <- c("all", "0-14", "15plus", "18plus") # exlude age groups
+  E <- E[
+    !age_group %in% exa & risk_factor == "all",
+    .(iso3, sex, age_group, TB = best, TB.sd = (hi - lo) / 3.92)
+  ] # choose right age groups
+  save(E,file=fn)
+} else { #load if there
+  load(fn)
+}
 
 ## --- WPP19 demography for 2020
 load(url(there("N80MF.Rdata"))) #from adotb repo
@@ -53,6 +65,11 @@ akey[, acat := gsub("plus", "+", age_group)]
 akey[, cage := AgeGrp]
 akey[AgeGrp %in% c("75-79", "80+"), cage := "75+"] # for contacts
 agz <- akey[, unique(acat)]
+
+if (!file.exists(here("data/agz.Rdata"))) {
+  save(agz, file = here("data/agz.Rdata"))
+}
+
 
 ## include sex also
 NS <- merge(N80[Year == 2019], akey) #NOTE year TODO update years
@@ -90,8 +107,9 @@ EW[!is.finite(relpcTB.female), relpcTB.female := NA]
 ## look:
 EW[iso3 == "VNM"]
 
-## make regional version
 EW <- merge(EW, whokey, by = "iso3") # merge region
+
+## make regional version
 ER <- EW[, .(
   relpcTB.male = mean(relpcTB.male, na.rm = TRUE),
   relpcTB.female = mean(relpcTB.female, na.rm = TRUE),
@@ -148,7 +166,7 @@ CD <- merge(CD, whokey, by = "iso3") # regions
 NS[, acato := age_group]
 NS[acato == "65plus", acato := "65+"]
 CD <- merge(CD, NS[, .(iso3, acato, pop.total)], by = c("iso3", "acato"))
-## summary(CD)
+summary(CD)
 
 ## === inspect
 
@@ -253,6 +271,7 @@ EW[acat == "0-4"]
 EC <- merge(
   EW[, .(
     iso3, g_whoregion, acat,
+    pop.female, pop.male,
     pcTB.female, pcTB.male,
     pcTB.female.sd, pcTB.male.sd
   )],
@@ -462,4 +481,3 @@ EC[, sum(pcTB.male)] / EC[, sum(pcTB.female)]
 
 
 save(EC, file = here("data/EC.Rdata"))
-
