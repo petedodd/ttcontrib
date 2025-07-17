@@ -7,6 +7,12 @@ library(ggthemes)
 library(scales)
 library(ggpubr)
 
+ssum <- function(x) sqrt(sum(x^2))
+
+## library(scales)
+## library(ggpubr)
+
+
 load(file = here("data/EC.Rdata"))
 
 

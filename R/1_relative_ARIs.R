@@ -5,22 +5,17 @@ library(ggplot2)
 library(viridis)
 library(glue)
 library(ggthemes)
-library(scales)
-library(ggpubr)
 
 ## utilities
-rdd <- "~/Documents/adotb/"
+rdd <- "https://raw.githubusercontent.com/petedodd/adotb/refs/heads/main/rawdata/" #ado TB repo
 there <- function(x) glue("{rdd}{x}")
-ssum <- function(x) sqrt(sum(x^2))
 
 ## key to WHO regions
-load(file = there("rawdata/whokey.Rdata"))
-
-
+load(url(there("whokey.Rdata"))) #from adotb repo
 
 ## --- mixing data
 ## contact data
-load(there("rawdata/synthetic_contacts_2021.csv.Rdata"))
+load(url(there("synthetic_contacts_2021.csv.Rdata"))) #from adotb repo
 CD <- synthetic_contacts_2021[
   location_contact == "all",
   .(
@@ -33,7 +28,7 @@ CD <- synthetic_contacts_2021[
 
 ## --- TB estimates
 ## read in WHO age-specific incidence
-E <- fread(there("rawdata/TB_burden_age_sex_2020-10-15.csv"))
+E <- fread(there("TB_burden_age_sex_2020-10-15.csv")) #from adotb repo
 E[, unique(age_group)]
 exa <- c("all", "0-14", "15plus", "18plus") # exlude age groups
 E <- E[
@@ -42,8 +37,7 @@ E <- E[
 ] # choose right age groups
 
 ## --- WPP19 demography for 2020
-## load(file=there('rawdata/N80.Rdata'))
-load(file = "~/Dropbox/Documents/WHO_TBreports/data2024/demography/data/N80_simple.Rdata")
+load(url(there("N80MF.Rdata"))) #from adotb repo
 
 ## age key
 akey <- data.table(AgeGrp = unique(N80$AgeGrp))
@@ -61,10 +55,12 @@ akey[AgeGrp %in% c("75-79", "80+"), cage := "75+"] # for contacts
 agz <- akey[, unique(acat)]
 
 ## include sex also
-NS <- merge(N80[Year == 2020], akey) #NOTE year
-NS <- NS[, .(pop.total = sum(PopTotal), pop.female = sum(PopFemale), pop.male = sum(PopMale)),
+NS <- merge(N80[Year == 2019], akey) #NOTE year TODO update years
+NS <- NS[, .(pop.total = sum(PopTotal),
+             pop.female = sum(PopFemale),
+             pop.male = sum(PopMale)),
   by = .(iso3, age_group)
-]
+  ]
 
 ## join demography + TB
 EW <- dcast(E, iso3 + age_group ~ sex, value.var = c("TB", "TB.sd"))
@@ -73,8 +69,10 @@ EW[, c(
   "pcTB.total", "pcTB.male", "pcTB.female",
   "pcTB.total.sd", "pcTB.male.sd", "pcTB.female.sd"
 ) := .(
-  (TB_m + TB_f) / pop.total, TB_m / pop.male, TB_f / pop.female,
-  sqrt(TB.sd_m^2 + TB.sd_f^2) / pop.total, TB.sd_m / pop.male, TB.sd_f / pop.female
+  (TB_m + TB_f) / pop.total,
+  TB_m / pop.male, TB_f / pop.female,
+  sqrt(TB.sd_m^2 + TB.sd_f^2) / pop.total,
+  TB.sd_m / pop.male, TB.sd_f / pop.female
 )] # per capita TB
 EW <- merge(EW, unique(akey[, .(age_group, acat)]), by = "age_group")
 EW$acat <- factor(EW$acat, levels = agz, ordered = TRUE)
@@ -82,8 +80,10 @@ refs <- EW[acat == "15-24", .(iso3, refpcTB = pcTB.female)] # ref cat
 EW <- merge(EW, refs, by = c("iso3"))
 
 ## relative per capita TB
-EW[, c("relpcTB.male", "relpcTB.female") := .(pcTB.male / refpcTB, pcTB.female / refpcTB)]
-EW[, c("relpcTB.male.sd", "relpcTB.female.sd") := .(pcTB.male.sd / refpcTB, pcTB.female.sd / refpcTB)]
+EW[, c("relpcTB.male", "relpcTB.female") :=
+  .(pcTB.male / refpcTB, pcTB.female / refpcTB)]
+EW[, c("relpcTB.male.sd", "relpcTB.female.sd") :=
+  .(pcTB.male.sd / refpcTB, pcTB.female.sd / refpcTB)]
 EW[!is.finite(relpcTB.male), relpcTB.male := NA]
 EW[!is.finite(relpcTB.female), relpcTB.female := NA]
 
@@ -107,7 +107,10 @@ ERM <- melt(ER, id = c("g_whoregion", "iso3", "acat"))
 ERM[, type := ifelse(grepl("sdpc", variable), "sdpc", "mid")]
 ERM[, variable := gsub("\\.sdpc", "", variable)]
 ERM[, c("variable", "sex") := tstrsplit(variable, split = "\\.")]
-ERM <- dcast(ERM, g_whoregion + iso3 + acat + variable + sex ~ type, value.var = "value")
+ERM <- dcast(ERM,
+  g_whoregion + iso3 + acat + variable + sex ~ type,
+  value.var = "value"
+)
 
 GP <- ggplot(
   ERM[!acat %in% c("0-4", "5-14")],
@@ -157,17 +160,27 @@ CDR[, acato := factor(acato, levels = agz, ordered = TRUE)]
 CDR[, acati := factor(acati, levels = agz, ordered = TRUE)]
 
 ## create and plot regional averages
-cdr <- CD[, .(contacts = weighted.mean(ctx, w = pop.total), pop.total = sum(pop.total)),
-  by = .(g_whoregion, acato, acati)
+cdr <- CD[, .(
+  contacts = weighted.mean(ctx, w = pop.total),
+  pop.total = sum(pop.total)
+),
+by = .(g_whoregion, acato, acati)
 ] # regional ave
 cdr[, acato := factor(acato, levels = agz, ordered = TRUE)]
 cdr[, acati := factor(acati, levels = agz, ordered = TRUE)]
-cdr[, totar := sum(contacts), by = .(acato, g_whoregion)] # normalize by contactor contacts
-cdrr <- cdr[, .(contacts = sum(contacts * pop.total)), by = .(g_whoregion, acati)]
+cdr[, totar := sum(contacts),
+  by = .(acato, g_whoregion)
+] # normalize by contactor contacts
+cdrr <- cdr[, .(contacts = sum(contacts * pop.total)),
+  by = .(g_whoregion, acati)
+]
 cdrr[, totar := sum(contacts), by = .(g_whoregion)] # normalize
 cdrr[, acato := NA]
 
-GP <- ggplot(data = cdr, aes(x = acati, y = contacts / totar, col = acato, group = paste(g_whoregion, acato))) +
+GP <- ggplot(data = cdr, aes(
+  x = acati, y = contacts / totar,
+  col = acato, group = paste(g_whoregion, acato)
+)) +
   geom_line() +
   geom_line(data = cdrr, col = 2, lty = 2, lwd = 2) +
   theme_linedraw() +
@@ -175,14 +188,17 @@ GP <- ggplot(data = cdr, aes(x = acati, y = contacts / totar, col = acato, group
   theme(legend.position = "bottom") +
   facet_wrap(~g_whoregion) +
   xlab("Age of contactee") +
-  ylab("Proportion of contacts made to each contactee age group by contactor group") +
+  ylab("Proportion of contacts made to each
+contactee age group by contactor group") +
   ggtitle("Step 2: Regional average contact patterns") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 GP
 
 ggsave(GP, file = here("output/step2_ARI_line_contacts.png"), w = 12, h = 8)
 
-fwrite(cdrr[, .(prop = contacts / totar, acati, g_whoregion)], file = here("output/step2_contactprops.csv"))
+fwrite(cdrr[, .(prop = contacts / totar, acati, g_whoregion)],
+  file = here("output/step2_contactprops.csv")
+)
 
 
 ## including pops
@@ -190,12 +206,22 @@ cdr0 <- copy(cdr)
 cdr0[acati %in% c("0-4", "5-14"), contacts := 0]
 cdr0[, acato := factor(acato, levels = agz, ordered = TRUE)]
 cdr0[, acati := factor(acati, levels = agz, ordered = TRUE)]
-cdr0[, totar := sum(contacts), by = .(acato, g_whoregion)] # normalize by contactor contacts
-cdr0r <- cdr0[, .(contacts = sum(contacts * pop.total)), by = .(g_whoregion, acati)]
+cdr0[, totar := sum(contacts),
+  by = .(acato, g_whoregion)
+] # normalize by contactor contacts
+cdr0r <- cdr0[, .(contacts = sum(contacts * pop.total)),
+  by = .(g_whoregion, acati)
+]
 cdr0r[, totar := sum(contacts), by = .(g_whoregion)] # normalize
 cdr0r[, acato := NA]
 
-GP <- ggplot(data = cdr0, aes(x = acati, y = contacts / totar, col = acato, group = paste(g_whoregion, acato))) +
+GP <- ggplot(
+  data = cdr0,
+  aes(
+    x = acati, y = contacts / totar,
+    col = acato, group = paste(g_whoregion, acato)
+  )
+) +
   geom_line() +
   geom_line(data = cdr0r, col = 2, lty = 2, lwd = 2) +
   theme_linedraw() +
@@ -203,14 +229,22 @@ GP <- ggplot(data = cdr0, aes(x = acati, y = contacts / totar, col = acato, grou
   theme(legend.position = "bottom") +
   facet_wrap(~g_whoregion) +
   xlab("Age of contactee") +
-  ylab("Proportion of contacts made to each contactee age group by contactor group") +
-  ggtitle("Step 2: Regional average 'effective' contact patterns: zeroing child contactees") +
+  ylab("Proportion of contacts made to each contactee
+age group by contactor group") +
+  ggtitle("Step 2: Regional average 'effective' contact patterns:
+zeroing child contactees") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 GP
 
-ggsave(GP, file = here("output/step2_ARI_line_contacts_inf.png"), w = 12, h = 8) #
+ggsave(GP,
+  file = here("output/step2_ARI_line_contacts_inf.png"),
+  w = 12, h = 8
+) #
 
-fwrite(cdr0r[, .(prop = contacts / totar, acati, g_whoregion)], file = here("output/step2_contactprops0.csv"))
+
+fwrite(cdr0r[, .(prop = contacts / totar, acati, g_whoregion)],
+  file = here("output/step2_contactprops0.csv")
+)
 
 
 EW[acat == "0-4"]
@@ -239,11 +273,17 @@ length(unique(EC$iso3)) # 177 countries
 ass <- 0.6 ## exp(-0.570 + 0.5*0.085^2)
 
 ## how does this data translate to: ass[s,A,A']?
-## assuming C[s,s',a,a'] = [ ass[s,A,A'](s==s') + (1-ass[s,A,A'])(s!=s') ] K[a,a']
-## and N[f,a] = N[m,a], aggregating to calculate fraction of contacts a\in A etc:
+## assuming:
+## C[s,s',a,a'] = [ ass[s,A,A'](s==s') + (1-ass[s,A,A'])(s!=s') ] K[a,a']
+## and:
+## N[f,a] = N[m,a], aggregating to calculate fraction of contacts a\in A etc:
 ## F[s,s',A,A'] = ass[s,A,A'](s==s') + (1-ass[s,A,A'])(s!=s')
 ## in other words: aggregates consistently if N[f,a] = N[m,a]
-ASS <- SASS <- array(0.5, dim = c(2, 2, 2), dimnames = list(fr = c("K", "A"), to = c("K", "A"), sex = c("M", "F")))
+ASS <- SASS <- array(0.5,
+                     dim = c(2, 2, 2),
+                     dimnames = list(fr = c("K", "A"),
+                                     to = c("K", "A"),
+                                     sex = c("M", "F")))
 ## data from Katherine:
 ## Boys w/ children: 	0.61 [0.59; 0.63]	0.61 [0.59; 0.63]
 ASS["K", "K", "M"] <- 0.61
@@ -285,11 +325,13 @@ EC <- merge(EC, SASW, by = c("fr", "to"))
 
 
 ## under 15 not infectious
-EC[acat %in% c("0-4", "5-14"), c("pcTB.female", "pcTB.male", "pcTB.female.sd", "pcTB.male.sd") := 0]
+EC[acat %in% c("0-4", "5-14"),
+   c("pcTB.female", "pcTB.male", "pcTB.female.sd", "pcTB.male.sd") := 0]
 
 ## look:
-EC[iso3=='ZAF',.(acat,acati,ctx)]
-CD[iso3=='ZAF']
+EC[iso3 == "ZAF", .(acat, acati, ctx)]
+CD[iso3 == "ZAF"]
+
 
 ## country weightings (TB)
 ET <- E[, .(TB = sum(TB)), by = iso3]
@@ -325,12 +367,17 @@ EC[, c(
 
 ## quick check:
 ## ass=0.6 for all means 1.1 as expected
-EC[, sum(ari.male.male + ari.male.female)] / EC[, sum(ari.female.male + ari.female.female)] # to M/F
-EC[, sum(ari.male.male + ari.female.male)] / EC[, sum(ari.female.female + ari.male.female)] # from M/F
+EC[, sum(ari.male.male + ari.male.female)] /
+  EC[, sum(ari.female.male + ari.female.female)] # to M/F
+EC[, sum(ari.male.male + ari.female.male)] /
+  EC[, sum(ari.female.female + ari.male.female)] # from M/F
 
 
 ## checks
-TAB <- array(0.5, dim = c(2, 2), dimnames = list(fr = c("F", "M"), to = c("F", "M")))
+TAB <- array(0.5,
+  dim = c(2, 2),
+  dimnames = list(fr = c("F", "M"), to = c("F", "M"))
+)
 TAB["F", "M"] <- EC[, sum(ari.male.female)]
 TAB["M", "F"] <- EC[, sum(ari.female.male)]
 TAB["F", "F"] <- EC[, sum(ari.female.female)]
@@ -341,12 +388,14 @@ colSums(TAB)                      # TO
 rowSums(TAB)                      # FROM
 sum(TAB["M", ]) / sum(TAB["F", ]) # from M/F
 sum(TAB[, "M"]) / sum(TAB[, "F"]) # to M/F
+
 write.csv(TAB, file = "output/TAB.csv")
 
 
 kds <- c("0-4", "5-14")
 E[sex == "m", sum(TB)] / E[sex == "f", sum(TB)] # 1.6
-E[sex == "m" & !age_group %in% kds, sum(TB)] / E[sex == "f" & !age_group %in% kds, sum(TB)] # 1.7
+E[sex == "m" & !age_group %in% kds, sum(TB)] /
+  E[sex == "f" & !age_group %in% kds, sum(TB)] # 1.7
 
 ## rough corrobrating calc
 foitoM <- 1.7 * 0.6 + 1 * 0.4
@@ -364,12 +413,15 @@ EC[, c(
   "ari.male.female.sd", # NOTE the below are read right to left
   "ari.female.female.sd"
 ) := .(
-  pcTB.male * M * ctx * sqrt((M.sd / M)^2 + (pcTB.male.sd / pcTB.male)^2),
-  pcTB.male * (1 - F) * ctx * sqrt((F.sd / (1 - F))^2 + (pcTB.male.sd / pcTB.male)^2),
-  pcTB.female * (1 - M) * ctx * sqrt((M.sd / (1 - M))^2 +
-    (pcTB.female.sd / pcTB.female)^2),
-  pcTB.female * F * ctx * sqrt((F.sd / F)^2 + (pcTB.female.sd / pcTB.female)^2)
-)]
+       pcTB.male * M * ctx *
+       sqrt((M.sd / M)^2 + (pcTB.male.sd / pcTB.male)^2),
+  pcTB.male * (1 - F) * ctx *
+  sqrt((F.sd / (1 - F))^2 + (pcTB.male.sd / pcTB.male)^2),
+  pcTB.female * (1 - M) * ctx *
+  sqrt((M.sd / (1 - M))^2 + (pcTB.female.sd / pcTB.female)^2),
+  pcTB.female * F * ctx *
+  sqrt((F.sd / F)^2 + (pcTB.female.sd / pcTB.female)^2)
+  )]
 ## set child SDs
 EC[!is.finite(ari.female.female.sd), c(
   "ari.male.male.sd",
@@ -386,11 +438,14 @@ EC[, c(
   "ari.male.female0.sd", # NOTE the below are read right to left
   "ari.female.female0.sd"
 ) := .(
-  pcTB.female * M * ctx * sqrt((M.sd / M)^2 + (pcTB.male.sd / pcTB.male)^2),
-  pcTB.female * (1 - F) * ctx * sqrt((F.sd / (1 - F))^2 + (pcTB.male.sd / pcTB.male)^2),
-  pcTB.female * (1 - M) * ctx * sqrt((M.sd / (1 - M))^2 +
-    (pcTB.female.sd / pcTB.female)^2),
-  pcTB.female * F * ctx * sqrt((F.sd / F)^2 + (pcTB.female.sd / pcTB.female)^2)
+       pcTB.female * M * ctx *
+       sqrt((M.sd / M)^2 + (pcTB.male.sd / pcTB.male)^2),
+       pcTB.female * (1 - F) * ctx *
+       sqrt((F.sd / (1 - F))^2 + (pcTB.male.sd / pcTB.male)^2),
+       pcTB.female * (1 - M) * ctx *
+       sqrt((M.sd / (1 - M))^2 + (pcTB.female.sd / pcTB.female)^2),
+       pcTB.female * F * ctx *
+       sqrt((F.sd / F)^2 + (pcTB.female.sd / pcTB.female)^2)
 )]
 ## set child SDs
 EC[!is.finite(ari.female.female0.sd), c(
