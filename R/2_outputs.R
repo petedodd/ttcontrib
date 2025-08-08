@@ -17,6 +17,15 @@ load(file = here("data/agz.Rdata"))
 load(file = here("data/whokey.Rdata"))
 NS <- unique(EC[, .(iso3, acat, pop.female, pop.male)]) # convenient store
 
+whoz <- c("AFR", "AMR", "EMR", "EUR", "SEA", "WPR")
+whozt <- c(
+  "Africa", "The Americas",
+  "Eastern Mediterranean", "Europe", "South-East Asia",
+  "Western Pacific"
+)
+regkey <- data.table(g_whoregion = whoz, region = whozt)
+
+
 ## NOTE
 ## output/Contacts_reg.png currently commented out:
 ## requires CD data saving from 1
@@ -484,6 +493,152 @@ ggplot(ECGir, aes(acat, ari, fill = from)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave(file = here("output/ARI_from_reg.png"), w = 20, h = 10)
+
+
+## --- regional aggregates over sex
+ECGA <- ECM[, .(ari = sum(mn * popto)),
+  by = .(acat, from, g_whoregion)
+  ] # total exposure happening, by age of source
+ECGA[, ari := ari / sum(ari), by = g_whoregion]
+ECGA <- merge(ECGA, regkey, by = "g_whoregion")
+ECGA$region <- factor(ECGA$region, levels = whozt, ordered = TRUE)
+ECGA$acat <- factor(ECGA$acat, levels = agz, ordered = TRUE)
+
+ggplot(ECGA, aes(acat, ari, fill = from)) +
+  geom_bar(stat = "identity") +
+  scale_fill_colorblind() +
+  ggh4x::facet_wrap2(~region, axes = "all") +
+  theme_classic() +
+  ggpubr::grids() +
+  scale_y_continuous(label = percent) +
+  xlab("Age of infector") +
+  ylab("Proportion of all infection") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic"), # , size = 12
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    legend.position = "top"
+  )
+
+ggsave(file = here("output/ARIA_from_reg.png"), w = 7, h = 5)
+
+
+## most aggregate version
+ECGR <- ECM[, .(
+  ari = sum(mn * popto),
+  ari.sd = ssum(sd * popto)
+),
+by = .(g_whoregion, acati, from)
+]
+ECGR[, c("tot", "tot.sd") := .(sum(ari), ssum(ari.sd)), by = g_whoregion]
+ECGR[, c("fari", "fari.sd") :=
+  .(
+    ari / tot,
+    (ari / tot) * sqrt((ari.sd / ari)^2 + (tot.sd / tot)^2)
+  )]
+ECGR <- merge(ECGR, regkey, by = "g_whoregion")
+ECGR$region <- factor(ECGR$region, levels = whozt, ordered = TRUE)
+ECGR$acati <- factor(ECGR$acati, levels = agz, ordered = TRUE)
+
+
+ggplot(ECGR, aes(acati, fari, fill = from)) +
+  geom_bar(stat = "identity") +
+  scale_fill_colorblind() +
+  ## geom_errorbar(
+  ##   data = ECGT,
+  ##   aes(ymin = fari - 1.96 * fari.sd, ymax = fari + 1.96 * fari.sd),
+  ##   width = 0, col = 2
+  ## ) +
+  facet_wrap(~region, scales = "free") +
+  theme_classic() +
+  ggpubr::grids() +
+  scale_y_continuous(label = percent) +
+  xlab("Age of infectee") +
+  ylab("Proportion of all exposure to each group") +
+  ## geom_text(data = TXT, aes(acati, fari + 3e-3, label = pcnt), col = cl) +
+  guides(color = "none") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic"), #, size = 12
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    legend.position = "top"
+  )
+
+ggsave(file = here("output/ARIA_to_reg.png"), w = 7, h = 5)
+
+## both
+BECR <- merge(ECGA[, .(region, from, acat, ari)],
+  ECGR[, .(region, from, acat = acati, fari)],
+  by = c("region", "from", "acat")
+)
+
+BRM <- melt(BECR, id = c("region", "from", "acat"))
+BRT <- BRM[, .(value = sum(value), from = "all"), by = .(region, acat, variable)]
+BRM <- rbind(BRM[from == "male"], BRT)
+BRM[, quantity := ifelse(variable == "fari", "exposure", "transmission")]
+BRT[, quantity := ifelse(variable == "fari", "exposure", "transmission")]
+
+
+ggplot(
+  BRM,
+  aes(acat, value,
+      col = from, lty = quantity,
+      group = paste(region, variable, from)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  scale_color_colorblind() +
+  facet_wrap(~region, scales = "free") +
+  theme_classic() +
+  ggpubr::grids() +
+  scale_y_continuous(label = percent) +
+  xlab("Age") +
+  ylab("Proportion of all exposure to each group") +
+  ## guides(color = "none") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic"), # , size = 12
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    legend.position = "top"
+  )
+
+ggsave(file = here("output/ARIB_to_reg.png"), w = 10, h = 7)
+
+
+ggplot(
+  BRT,
+  aes(acat, value,
+    col = quantity,
+    group = paste(region, variable)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  paletteer::scale_color_paletteer_d("fishualize::Acanthurus_sohal") +
+  facet_wrap(~region, scales = "free") +
+  theme_classic() +
+  ggpubr::grids() +
+  scale_y_continuous(label = percent) +
+  xlab("Age") +
+  ylab("Proportion of all exposure to each group") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic"), # , size = 12
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    legend.position = "top"
+  )
+
+
+ggsave(file = here("output/ARIB_to_reg2.png"), w = 10, h = 7)
 
 
 
