@@ -7,8 +7,9 @@ library(glue)
 library(ggthemes)
 
 ## utilities
-rdd <- "https://raw.githubusercontent.com/petedodd/adotb/refs/heads/main/rawdata/" #ado TB repo
-there <- function(x) glue("{rdd}{x}")
+rdb <- "https://raw.githubusercontent.com/petedodd/"
+rdd <- "adotb/refs/heads/main/rawdata/" #ado TB repo
+there <- function(x) glue("{rdb}{rdd}{x}")
 
 ## key to WHO regions
 fn <- here("data/whokey.Rdata")
@@ -22,20 +23,23 @@ if (!file.exists(fn)) {
 ## --- mixing data
 ## contact data
 load(url(there("synthetic_contacts_2021.csv.Rdata"))) #from adotb repo
-CD <- synthetic_contacts_2021[
-  location_contact == "all",
-  .(
-    iso3 = iso3c, age_contactor,
-    age_contactee = age_cotactee,
-    ctx = mean_number_of_contacts
-  )
+
+## check
+tmp <- synthetic_contacts_2021[
+  iso3c == "IND" &
+    location_contact == "all" &
+    setting == "overall"
 ]
+
+dcast(tmp, age_cotactee ~ age_contactor,
+  value.var = "mean_number_of_contacts"
+)
 
 
 ## --- TB estimates
 ## read in WHO age-specific incidence
 fn <- here("data/E.Rdata")
-if (!file.exists(fn)) {                                 #get if not there
+if (!file.exists(fn)) { # get if not there
   E <- fread(there("TB_burden_age_sex_2020-10-15.csv")) # from adotb repo
   E[, unique(age_group)]
   exa <- c("all", "0-14", "15plus", "18plus") # exlude age groups
@@ -43,8 +47,8 @@ if (!file.exists(fn)) {                                 #get if not there
     !age_group %in% exa & risk_factor == "all",
     .(iso3, sex, age_group, TB = best, TB.sd = (hi - lo) / 3.92)
   ] # choose right age groups
-  save(E,file=fn)
-} else { #load if there
+  save(E, file = fn)
+} else { # load if there
   load(fn)
 }
 
@@ -148,7 +152,18 @@ GP
 ggsave(GP, file = here("output/step1_ARI_percapTB.png"), w = 12, h = 7)
 
 
-## aggregating contacts
+## --- contacts
+## restrict & rename
+CD <- synthetic_contacts_2021[
+  location_contact == "all" & setting == "overall",
+  .(
+    iso3 = iso3c, age_contactor,
+    age_contactee = age_cotactee,
+    ctx = mean_number_of_contacts
+  )
+]
+
+## -- aggregating contacts
 CD[, AO := gsub(" to ", "-", age_contactor)]
 CD[, AI := gsub(" to ", "-", age_contactee)]
 CD <- merge(CD, unique(akey[, .(cage, acato = acat)]),
@@ -159,16 +174,67 @@ CD <- merge(CD, unique(akey[, .(cage, acati = acat)]),
   by.x = "AI", by.y = "cage",
   all.x = TRUE, all.y = FALSE
 )
-CD <- CD[, .(ctx = sum(ctx)), by = .(iso3, acato, acati)]
-CD <- merge(CD, whokey, by = "iso3") # regions
 
-## merging in population data
+## aggregate 'to' contacts (over acati):
+CD <- CD[, .(ctx = sum(ctx)), by = .(iso3, acati, AO)]
+
+## compare age groups
+setdiff(N80[, unique(AgeGrp)], CD[, unique(AO)])
+N75 <- N80[, AO := ifelse(
+  AgeGrp %in% c("75-79", "80+"),
+  "75+",
+  as.character(AgeGrp)
+)]
+unique(N75[, .(AgeGrp, AO)]) # check
+## aggregate last cat:
+N75 <- N75[, .(PopTotal = sum(PopTotal)), by = .(iso3, AO)]
+
+## merge pops
+setdiff(N75[, unique(AO)], CD[, unique(AO)])
+setdiff(CD[, unique(AO)], N75[, unique(AO)])
+CD <- merge(CD, N75, by = c("iso3", "AO"))
+
+dcast(CD[iso3 == "IND"],
+      acati ~ AO,
+  value.var = "ctx"
+  )                                        #cf same as sheet
+unique(CD[iso3 == "IND", .(AO, PopTotal)]) #cf pops in test sheet? CHECK
+
+## acato back in
+CD <- merge(CD,
+  unique(akey[, .(acato = acat, AO = cage)]),
+  by = "AO"
+)
+
+## weighted mean over contactor
+CD <- CD[, .(
+  ctx = weighted.mean(ctx, PopTotal)
+),
+by = .(iso3, acato, acati)
+]
+
+## order factors
+CD[, acato := factor(acato, levels = agz, ordered = TRUE)]
+CD[, acati := factor(acati, levels = agz, ordered = TRUE)]
+
+dcast(CD[iso3 == "IND"],
+  acati ~ acato,
+  value.var = "ctx"
+) # cf same as sheet
+
+
+## merging in aggregate population data
 NS[, acato := age_group]
 NS[acato == "65plus", acato := "65+"]
 CD <- merge(CD, NS[, .(iso3, acato, pop.total)], by = c("iso3", "acato"))
+CD <- merge(CD, whokey, by = "iso3") # regions
+
 summary(CD)
 
 ## === inspect
+
+## individual countries
+CD[iso3 == "IND"][, sum(ctx), by = acato] #cf very close to sheet
 
 ## patterns by age
 CDR <- CD[, .(contacts = mean(ctx)),
