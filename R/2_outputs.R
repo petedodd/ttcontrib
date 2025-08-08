@@ -98,17 +98,25 @@ GPa <- ggplot(ECG, aes(acati, fari, fill = from)) +
     aes(ymin = fari - 1.96 * fari.sd, ymax = fari + 1.96 * fari.sd),
     width = 0, col = 2
   ) +
-  facet_wrap(~to) +
-  theme_linedraw() +
+  ggh4x::facet_wrap2(~to, axes = "all") +
+  theme_classic() +
+  ggpubr::grids() +
   scale_y_continuous(label = percent) +
   xlab("Age of infectee") +
   ylab("Proportion of all exposure to each group") +
   geom_text(data = TXT, aes(acati, fari + 3e-3, label = pcnt), col = cl) +
   guides(color = "none") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic", size = 12),
+    strip.background = element_blank(),
+    strip.placement = "outside"
+  )
 GPa
 
 ggsave(file = here("output/ARI_to.png"), w = 12, h = 6)
+
 
 
 ggplot(ECG, aes(acati, fari, fill = from)) +
@@ -238,8 +246,7 @@ XoYpc <- function(num, den) {
 
 ## NOTE fraction of everyone that are male adults
 NS[!acat %in% c("0-4", "5-14"), sum(pop.male)] /
-  pop[, sum(pop.male + pop.female)] # 37 % of population
-
+  NS[, sum(pop.male + pop.female)] # 37 % of population
 
 ## out text
 outtxt <- list()
@@ -405,6 +412,17 @@ ECGTsi <- ECGi[,
 ECGTsi[, sum(faris)]
 ECGTsi[, from := "male"]
 
+## make label text for plot
+TXTi <- ECGi[, .(tot = sum(ari)), by = .(acat, to)]
+TXTi <- merge(ECGi[, .(acat, from, to, ari, faris, faris.sd)],
+  TXTi,
+  by = c("acat", "to")
+  )
+TXTi <- TXTi[from == "male"]
+TXTi[acat == "65+" & to == "male", faris := faris - 1e-3]
+TXTi[, pcnt := paste0(format(round(100 * ari / tot)), "%")]
+TXTi[!is.finite(faris.sd), pcnt := NA_character_]
+
 
 ## NOTE most favoured 2
 GPb <- ggplot(ECGi, aes(acat, faris, fill = from)) +
@@ -415,13 +433,22 @@ GPb <- ggplot(ECGi, aes(acat, faris, fill = from)) +
     width = 0, col = 2
   ) +
   scale_fill_colorblind() +
-  facet_wrap(~to) +
-  theme_linedraw() +
+  ggh4x::facet_wrap2(~to, axes = "all") +
+  theme_classic() +
+  ggpubr::grids() +
   scale_y_continuous(label = percent) +
+  geom_text(data = TXTi, aes(acat, faris + 3e-3, label = pcnt), col = cl) +
   xlab("Age of infector") +
   ylab("Proportion of all exposure from each group") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic", size = 12),
+    strip.background = element_blank(),
+    strip.placement = "outside"
+  )
 GPb
+
 
 ggsave(file = here("output/ARI_from.png"), w = 10, h = 5)
 
@@ -439,11 +466,10 @@ ggsave(file = here("output/ARI_BOTH.png"), w = 10, h = 10)
 ## ages are targets for A and sources for B
 ## A and B sum to 1
 
-
 ## -----------------
 ECGir <- ECM[, .(ari = sum(mn * popto)),
   by = .(acat, from, to, g_whoregion)
-] # total exposure happening, by age of source
+  ] # total exposure happening, by age of source
 ECGir[, ari := ari / sum(ari), by = g_whoregion]
 ECGir$acat <- factor(ECGir$acat, levels = agz, ordered = TRUE)
 
@@ -477,25 +503,7 @@ ggplot(ECGgr, aes(g_whoregion, ari)) +
   ylab("Proportion of all exposure") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-## TODO what is this?
-
-## ggsave(file=here('../plots/ARI_inreg.png'),w=6,h=5)
-
-## CDS <- CD[!acati %in% kds, .(ctx = sum(ctx)), by = .(acato, g_whoregion)]
-## CDS[, tot := sum(ctx), by = g_whoregion]
-## CDS$acato <- factor(CDS$acato, levels = agz, ordered = TRUE)
-
-## ggplot(CDS, aes(acato, ctx / tot)) +
-##   geom_bar(stat = "identity") +
-##   theme_linedraw() +
-##   facet_wrap(~g_whoregion) +
-##   scale_y_continuous(label = percent) +
-##   xlab("Contactor age") +
-##   ylab("Proportion of all contacts to adults from each age") +
-##   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-## ggsave(file = here("output/Contacts_reg.png"), w = 10, h = 7) # TODO BUG check
+ggsave(file = here("output/ARI_inreg.png"), w = 6, h = 5)
 
 
 ## pc TB by region?

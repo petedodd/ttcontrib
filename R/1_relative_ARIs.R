@@ -523,15 +523,16 @@ EC[, c(
   "ari.male.female0.sd", # NOTE the below are read right to left
   "ari.female.female0.sd"
 ) := .(
-       pcTB.female * M * ctx *
-       sqrt((M.sd / M)^2 + (pcTB.male.sd / pcTB.male)^2),
-       pcTB.female * (1 - F) * ctx *
-       sqrt((F.sd / (1 - F))^2 + (pcTB.male.sd / pcTB.male)^2),
-       pcTB.female * (1 - M) * ctx *
-       sqrt((M.sd / (1 - M))^2 + (pcTB.female.sd / pcTB.female)^2),
-       pcTB.female * F * ctx *
-       sqrt((F.sd / F)^2 + (pcTB.female.sd / pcTB.female)^2)
+  pcTB.female * M * ctx *
+    sqrt((M.sd / M)^2 + (pcTB.male.sd / pcTB.male)^2),
+  pcTB.female * (1 - F) * ctx *
+    sqrt((F.sd / (1 - F))^2 + (pcTB.male.sd / pcTB.male)^2),
+  pcTB.female * (1 - M) * ctx *
+    sqrt((M.sd / (1 - M))^2 + (pcTB.female.sd / pcTB.female)^2),
+  pcTB.female * F * ctx *
+    sqrt((F.sd / F)^2 + (pcTB.female.sd / pcTB.female)^2)
 )]
+
 ## set child SDs
 EC[!is.finite(ari.female.female0.sd), c(
   "ari.male.male0.sd",
