@@ -12,6 +12,7 @@ cl <- colorblind_pal()(2)[2] # relevant color (gold)
 clz <- colorblind_pal()(8) #more colors
 
 ## data from file 1
+load(file = here("data/totpop.Rdata"))
 load(file = here("data/EC.Rdata"))
 load(file = here("data/E.Rdata"))
 load(file = here("data/agz.Rdata"))
@@ -249,7 +250,7 @@ XoYpc <- function(num, den) {
   lo <- max(0, mid - 1.96 * mid.sd)
   paste0(
     format(round(100 * mid)),
-    "% (", format(round(100 * lo)),
+    "% (95%UI: ", format(round(100 * lo)),
     "% to ", format(round(100 * hi)), "%)"
   )
 }
@@ -260,6 +261,7 @@ NS[!acat %in% c("0-4", "5-14"), sum(pop.male)] /
   NS[, sum(pop.male + pop.female)] # 37 % of population
 
 ## out text
+ok <- 1
 outtxt <- list()
 
 ## to men
@@ -272,10 +274,11 @@ num <- ECGL[
     to == "male" & !acati %in% c("0-4", "5-14"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[1]] <- data.table(
-  qty = "% infections to men, from men",
+outtxt[[ok]] <- data.table(
+  qty = "% transmission to men, from men",
   value = XoYpc(num, den)
 )
+ok <- ok + 1
 
 ## to women
 den <- ECGL[
@@ -287,10 +290,11 @@ num <- ECGL[
     to == "female" & !acati %in% c("0-4", "5-14"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[2]] <- data.table(
-  qty = "% infections to women, from men",
+outtxt[[ok]] <- data.table(
+  qty = "% transmission to women, from men",
   value = XoYpc(num, den)
 )
+ok <- ok + 1
 
 ## to kids
 den <- ECGL[
@@ -302,10 +306,11 @@ num <- ECGL[
     acati %in% c("0-4", "5-14"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[3]] <- data.table(
-  qty = "% infections to children, from men",
+outtxt[[ok]] <- data.table(
+  qty = "% transmission to children, from men",
   value = XoYpc(num, den)
 )
+ok <- ok + 1
 
 ## to anyone
 den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
@@ -313,21 +318,72 @@ num <- ECGL[
   from == "male" & !acat %in% c("0-4", "5-14"), # from men
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[4]] <- data.table(
-  qty = "% infections, from men",
+outtxt[[ok]] <- data.table(
+  qty = "% transmission from men",
   value = XoYpc(num, den)
 )
+ok <- ok + 1
 
-## to anyone, from 25-44
+## to anyone, from M25-44
 den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
 num <- ECGL[
   from == "male" & acat %in% c("25-34", "35-44"),
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[5]] <- data.table(
-  qty = "% infections, from M25-44",
+outtxt[[ok]] <- data.table(
+  qty = "% transmission from M25-44",
   value = XoYpc(num, den)
 )
+ok <- ok + 1
+
+## to anyone, from M55+
+den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
+num <- ECGL[
+  from == "male" & acat %in% c("55-64", "65+"),
+  .(fari = sum(fari), fari.sd = ssum(fari.sd))
+]
+outtxt[[ok]] <- data.table(
+  qty = "% transmission from M55+",
+  value = XoYpc(num, den)
+)
+ok <- ok + 1
+
+## to anyone, from A15-24
+den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
+num <- ECGL[
+  acat %in% c("15-24"),
+  .(fari = sum(fari), fari.sd = ssum(fari.sd))
+]
+outtxt[[ok]] <- data.table(
+  qty = "% transmission from A15-24",
+  value = XoYpc(num, den)
+)
+ok <- ok + 1
+
+## to anyone, from A25-44
+den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
+num <- ECGL[
+  acat %in% c("25-34", "35-44"),
+  .(fari = sum(fari), fari.sd = ssum(fari.sd))
+]
+outtxt[[ok]] <- data.table(
+  qty = "% transmission from A25-44",
+  value = XoYpc(num, den)
+)
+ok <- ok + 1
+
+## to anyone, from A55+
+den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
+num <- ECGL[
+  acat %in% c("55-64", "65+"),
+  .(fari = sum(fari), fari.sd = ssum(fari.sd))
+]
+outtxt[[ok]] <- data.table(
+  qty = "% transmission from A55+",
+  value = XoYpc(num, den)
+)
+ok <- ok + 1
+
 
 ## to men
 den <- ECGL[, .(fari = sum(fari), fari.sd = ssum(fari.sd))]
@@ -335,38 +391,99 @@ num <- ECGL[
   to == "male",
   .(fari = sum(fari), fari.sd = ssum(fari.sd))
 ]
-outtxt[[6]] <- data.table(
-  qty = "% infections to men ",
+outtxt[[ok]] <- data.table(
+  qty = "% exposure to men ",
   value = XoYpc(num, den)
 )
+ok <- ok + 1
 
 ## population data: fraction male adults
 val <- NS[
   !acat %in% c("0-4", "5-14"),
   sum(pop.male)
 ] / NS[, sum(pop.male + pop.female)]
-outtxt[[7]] <- data.table(
+outtxt[[ok]] <- data.table(
   qty = "% of population men >=15",
   value = paste0(format(round(100 * val)))
 )
+ok <- ok + 1
 
 ## population data: fraction male adults 15-44
 val <- NS[
   acat %in% c("25-34", "35-44"),
   sum(pop.male)
 ] / NS[, sum(pop.male + pop.female)]
-outtxt[[8]] <- data.table(
+outtxt[[ok]] <- data.table(
   qty = "% of population M25-44",
   value = paste0(format(round(100 * val)))
 )
+ok <- ok + 1
 
 ## counterfactual reduction
 den <- ECG1[, .(fari = ari, fari.sd = ari.sd)]
 num <- ECG0[, .(fari = ari, fari.sd = ari.sd)]
-outtxt[[9]] <- data.table(
-  qty = "% exposure if F were M ",
+outtxt[[ok]] <- data.table(
+  qty = "% exposure if M were F ",
   value = XoYpc(num, den)
 )
+ok <- ok + 1
+outtxt[[ok]] <- data.table(
+  qty = "% reduction if M were F ",
+  value = XoYpc(den-num, den)
+)
+ok <- ok + 1
+
+## number of countries
+outtxt[[ok]] <- data.table(
+  qty = "No. countries",
+  value = length(unique(ECM$iso3))
+)
+ok <- ok + 1
+
+## % population
+outtxt[[ok]] <- data.table(
+  qty = "% global population",
+  value = round(
+    1e2 * unique(ECM[, .(iso3, to, acati, popto)])[, sum(popto)] / totpop,
+    digits = 1
+  )
+)
+ok <- ok + 1
+
+## % TB
+outtxt[[ok]] <- data.table(
+  qty = "% global TB",
+  value = round(
+    1e2 * E[, sum(TB)] / 10e6, #TODO update
+    digits = 1
+  )
+)
+ok <- ok + 1
+
+## exposure to A15-24
+den <- ECGL[, .(fari = sum(ari), fari.sd = ssum(ari.sd))]
+num <- ECGL[
+  acati %in% c("15-24"),
+  .(fari = sum(ari), fari.sd = ssum(ari.sd))
+]
+outtxt[[ok]] <- data.table(
+  qty = "% exposure in A15-24",
+  value = XoYpc(num, den)
+)
+ok <- ok + 1
+
+## exposure A55+
+den <- ECGL[, .(fari = sum(ari), fari.sd = ssum(ari.sd))]
+num <- ECGL[
+  acati %in% c("55-64", "65+"),
+  .(fari = sum(ari), fari.sd = ssum(ari.sd))
+]
+outtxt[[ok]] <- data.table(
+  qty = "% exposure in A55+",
+  value = XoYpc(num, den)
+)
+ok <- ok + 1
+
 
 ## join
 outtxt <- rbindlist(outtxt)

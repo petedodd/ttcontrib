@@ -55,6 +55,12 @@ if (!file.exists(fn)) { # get if not there
 ## --- WPP19 demography for 2020
 load(url(there("N80MF.Rdata"))) #from adotb repo
 
+if (!file.exists(here("data/totpop.Rdata"))) {
+  totpop <- N80[,sum(PopTotal)]
+  save(totpop, file = here("data/totpop.Rdata"))
+}
+
+
 ## age key
 akey <- data.table(AgeGrp = unique(N80$AgeGrp))
 akey[, age_group := AgeGrp]
