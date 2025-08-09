@@ -567,7 +567,7 @@ GPb <- ggplot(ECGi, aes(acat, faris, fill = from)) +
   scale_y_continuous(label = percent) +
   geom_text(data = TXTi, aes(acat, faris + 3e-3, label = pcnt), col = cl) +
   xlab("Age group of infector (years)") +
-  ylab("Proportion of all exposure from each group") +
+  ylab("Proportion of all transmission from each group") +
   ggtitle("transmission") +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
