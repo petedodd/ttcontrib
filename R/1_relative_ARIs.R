@@ -56,6 +56,12 @@ if (!file.exists(fn)) { # get if not there
 load(here("data/N80_2023.Rdata")) #already licked into shape
 totpop <- N80[, sum(PopTotal)]
 
+## saving out as used in step 2
+if (!file.exists(here("data/totpop.Rdata"))) {
+  totpop <- N80[, sum(PopTotal)]
+  save(totpop, file = here("data/totpop.Rdata"))
+}
+
 
 ## age key
 akey <- data.table(AgeGrp = unique(N80$AgeGrp))
