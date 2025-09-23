@@ -15,7 +15,7 @@ there <- function(x) glue("{rdb}{rdd}{x}")
 fn <- here("data/whokey.Rdata")
 if (!file.exists(fn)) {
   load(url(there("whokey.Rdata"))) # from adotb repo
-  save(whokey,file=fn)
+  save(whokey, file = fn)
 } else {
   load(file = fn)
 }
@@ -36,11 +36,11 @@ dcast(tmp, age_cotactee ~ age_contactor,
 )
 
 
-## --- TB estimates
+## --- TB estimates in 2024 for 2023
 ## read in WHO age-specific incidence
 fn <- here("data/E.Rdata")
 if (!file.exists(fn)) { # get if not there
-  E <- fread(there("TB_burden_age_sex_2020-10-15.csv")) # from adotb repo
+  E <- fread(here("data/TB_burden_age_sex_2024-10-30.csv")) # from adotb repo
   E[, unique(age_group)]
   exa <- c("all", "0-14", "15plus", "18plus") # exlude age groups
   E <- E[
@@ -52,13 +52,9 @@ if (!file.exists(fn)) { # get if not there
   load(fn)
 }
 
-## --- WPP19 demography for 2020
-load(url(there("N80MF.Rdata"))) #from adotb repo
-
-if (!file.exists(here("data/totpop.Rdata"))) {
-  totpop <- N80[,sum(PopTotal)]
-  save(totpop, file = here("data/totpop.Rdata"))
-}
+## --- WPP24 demography for 2023
+load(here("data/N80_2023.Rdata")) #already licked into shape
+totpop <- N80[, sum(PopTotal)]
 
 
 ## age key
@@ -82,7 +78,7 @@ if (!file.exists(here("data/agz.Rdata"))) {
 
 
 ## include sex also
-NS <- merge(N80[Year == 2019], akey) #NOTE year TODO update years
+NS <- merge(N80, akey)
 NS <- NS[, .(pop.total = sum(PopTotal),
              pop.female = sum(PopFemale),
              pop.male = sum(PopMale)),
@@ -204,7 +200,7 @@ dcast(CD[iso3 == "IND"],
       acati ~ AO,
   value.var = "ctx"
   )                                        #cf same as sheet
-unique(CD[iso3 == "IND", .(AO, PopTotal)]) #cf pops in test sheet? CHECK
+unique(CD[iso3 == "IND", .(AO, PopTotal)]) #cf pops in validation sheet
 
 ## acato back in
 CD <- merge(CD,
@@ -240,7 +236,7 @@ summary(CD)
 ## === inspect
 
 ## individual countries
-CD[iso3 == "IND"][, sum(ctx), by = acato] #cf very close to sheet
+CD[iso3 == "IND"][, sum(ctx), by = acato] #cf very close to validation sheet
 
 ## patterns by age
 CDR <- CD[, .(contacts = mean(ctx)),
