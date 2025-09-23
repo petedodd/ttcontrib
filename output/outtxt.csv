@@ -1,13 +1,20 @@
 qty,value
-"% infections to men, from men",67% (61% to 73%)
-"% infections to women, from men",53% (48% to 57%)
-"% infections to children, from men",63% (58% to 69%)
-"% infections, from men",61% (58% to 64%)
-"% infections, from M25-44",19% (18% to 21%)
-% infections to men ,52% (49% to 55%)
+"% transmission to men, from men",67% (95%UI: 62% to 71%)
+"% transmission to women, from men",52% (95%UI: 49% to 56%)
+"% transmission to children, from men",63% (95%UI: 58% to 68%)
+% transmission from men,61% (95%UI: 58% to 63%)
+% transmission from M25-44,19% (95%UI: 18% to 20%)
+% transmission from M55+,23% (95%UI: 22% to 25%)
+% transmission from A15-24,15% (95%UI: 14% to 16%)
+% transmission from A25-44,32% (95%UI: 30% to 33%)
+% transmission from A55+,36% (95%UI: 34% to 37%)
+% exposure to men ,52% (95%UI: 50% to 54%)
 % of population men >=15,37
 % of population M25-44,15
-% exposure if F were M ,74% (70% to 77%)
+% exposure if M were F ,75% (95%UI: 73% to 78%)
+% reduction if M were F ,25% (95%UI: 24% to 26%)
 No. countries,177
-% global population,97.5
-% global TB,99.5
+% global population,97.6
+% global TB,100
+% exposure in A15-24,24% (95%UI: 22% to 25%)
+% exposure in A55+,7% (95%UI: 6% to 7%)

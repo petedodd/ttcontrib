@@ -454,7 +454,7 @@ ok <- ok + 1
 outtxt[[ok]] <- data.table(
   qty = "% global TB",
   value = round(
-    1e2 * E[, sum(TB)] / 10e6, #TODO update
+    1e2 * E[, sum(TB)] / 10844410,
     digits = 1
   )
 )
@@ -490,15 +490,6 @@ outtxt <- rbindlist(outtxt)
 outtxt
 
 fwrite(outtxt, file = here("output/outtxt.csv"))
-
-
-## • regions (potentially in text)
-## • children different?
-## • patterns across countries: incidence?
-## • some sort of amplifier estimate: eg (proportional change in transmission) /
-## (proportional reduction in male prevalence, eg to F)?
-pcm <- 0.64
-1 - 2 * (1 - pcm) # 28% lower
 
 
 ## going by acato ------infector
@@ -718,11 +709,6 @@ BRT2$acati <- factor(BRT2$acati, levels = agz, ordered = TRUE)
 ggplot(ECGR, aes(acati, fari, fill = from)) +
   geom_bar(stat = "identity") +
   scale_fill_colorblind() +
-  ## geom_errorbar(
-  ##   data = ECGT,
-  ##   aes(ymin = fari - 1.96 * fari.sd, ymax = fari + 1.96 * fari.sd),
-  ##   width = 0, col = 2
-  ## ) +
   facet_wrap(~region, scales = "free") +
   theme_classic() +
   ggpubr::grids() +
@@ -756,50 +742,6 @@ BRT <- rbind(
 )
 BRT[!is.finite(v.sd), c("value", "v.sd") := 0.0]
 
-
-
-BECR <- merge(ECGA[, .(region, from, acat, ari)],
-  ECGR[, .(region, from, acat = acati, fari)],
-  by = c("region", "from", "acat")
-)
-BRM <- melt(BECR, id = c("region", "from", "acat"))
-BRM <- rbind(BRM[from == "male"], BRT, fill = TRUE)
-BRM[, quantity := ifelse(variable == "fari", "exposure", "transmission")]
-
-## TODO FIXME or remove
-## ggplot(
-##   BRM,
-##   aes(acat, value,
-##       col = from, lty = quantity,
-##       group = paste(region, variable, from)
-##   )
-## ) +
-##   geom_line() +
-##   geom_point() +
-##   ## geom_errorbar(
-##   ##   data = ECGT,
-##   ##   aes(ymin = fari - 1.96 * fari.sd, ymax = fari + 1.96 * fari.sd),
-##   ##   width = 0, col = 2
-##   ## ) +
-##   scale_color_colorblind() +
-##   facet_wrap(~region, scales = "free") +
-##   theme_classic() +
-##   ggpubr::grids() +
-##   scale_y_continuous(label = percent) +
-##   xlab("Age") +
-##   ylab("Proportion of all exposure to each group") +
-##   theme(
-##     axis.text.x = element_text(angle = 45, hjust = 1),
-##     panel.spacing = unit(2, "lines"), # or 3
-##     strip.text = element_text(face = "italic"), # , size = 12
-##     strip.background = element_blank(),
-##     strip.placement = "outside",
-##     legend.position = "top"
-##   )
-
-## ggsave(file = here("output/ARIB_to_reg.png"), w = 10, h = 7)
-
-
 cvz <- c(6,7)
 ggplot(
   BRT,
@@ -810,10 +752,6 @@ ggplot(
 ) +
   geom_line() +
   geom_point() +
-  ## geom_errorbar(
-  ##   aes(ymin = value - 1.96 * v.sd, ymax = value + 1.96 * v.sd),
-  ##   width = 0
-  ## ) +
   geom_ribbon(
     aes(
       ymin = value - 1.96 * v.sd,
@@ -868,7 +806,9 @@ ggsave(file = here("output/ARI_inreg.png"), w = 6, h = 5)
 
 ## pc TB by region?
 EG <- merge(E, whokey, by = "iso3")
-EG <- EG[, .(TB = sum(TB)), by = .(sex = toupper(sex), acat = age_group, g_whoregion)]
+EG <- EG[, .(TB = sum(TB)),
+  by = .(sex = toupper(sex), acat = age_group, g_whoregion)
+]
 EG[, sex := ifelse(sex == "F", "female", "male")]
 EG[acat == "65plus", acat := "65+"]
 
