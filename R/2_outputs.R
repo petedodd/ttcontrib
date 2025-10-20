@@ -742,7 +742,7 @@ BRT <- rbind(
 )
 BRT[!is.finite(v.sd), c("value", "v.sd") := 0.0]
 
-cvz <- c(6,7)
+cvz <- c(6, 7)
 ggplot(
   BRT,
   aes(acat, value,
@@ -938,17 +938,17 @@ GP <- ggplot(
       col = quantity
     ), width = 0.25
   ) +
-  ggrepel::geom_text_repel(
-    data = TXTb,
-    aes(acat,
-      value,
-      label = txt
-    ),
-    point.padding = 0.2,
-    ## min.segment.length = 0,
-    box.padding = 0.3,
-    size = 2.5
-  ) +
+  ## ggrepel::geom_text_repel(
+  ##   data = TXTb,
+  ##   aes(acat,
+  ##     value,
+  ##     label = txt
+  ##   ),
+  ##   point.padding = 0.2,
+  ##   ## min.segment.length = 0,
+  ##   box.padding = 0.3,
+  ##   size = 2.5
+  ## ) +
   scale_alpha_manual(values = c(0.3, 0)) +
   scale_color_manual(values = clz[cvz]) +
   scale_fill_manual(values = clz[cvz]) +
@@ -957,7 +957,7 @@ GP <- ggplot(
   ggpubr::grids() +
   scale_y_continuous(label = percent) +
   xlab("Age") +
-  ylab("Proportion of all exposure or exposure from each group") +
+  ylab("Proportion of all exposure to or transmission from each group") +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
     panel.spacing = unit(2, "lines"), # or 3
@@ -967,4 +967,3 @@ GP <- ggplot(
     legend.position = "top"
   )
 ggsave(GP, file = here("output/ARIB_to_reg.png"), w = 10, h = 7)
-
