@@ -831,3 +831,140 @@ ggplot(EG, aes(acat, pcTB)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave(file = here("output/pcTB_reg.png"), w = 10, h = 7)
+
+
+## ---- combined figure
+
+BECR <- merge(ECGA[, .(region, from, acat, ari)],
+  ECGR[, .(region, from, acat = acati, fari)],
+  by = c("region", "from", "acat")
+)
+BRM <- melt(BECR, id = c("region", "from", "acat"))
+BRM <- rbind(BRM[from == "male"], BRT, fill = TRUE)
+
+BRM[, quantity := ifelse(variable == "fari", "exposure", "transmission")]
+
+
+
+## male only data
+## to:
+BRM1 <- ECM[, .(
+  ari = sum(mn * popto),
+  ari.sd = ssum(sd * popto)
+),
+by = .(acat, g_whoregion, sex = from)
+]
+
+
+BRM1[, c("tot", "tot.sd") := .(sum(ari), ssum(ari.sd)), by = g_whoregion]
+BRM1[, c("ari", "ari.sd") :=
+  .(
+    ari / tot,
+    (ari / tot) * sqrt((ari.sd / ari)^2 + (tot.sd / tot)^2)
+  )]
+BRM1 <- merge(BRM1, regkey, by = "g_whoregion")
+BRM1$region <- factor(BRM1$region, levels = whozt, ordered = TRUE)
+BRM1$acat <- factor(BRM1$acat, levels = agz, ordered = TRUE)
+## from:
+BRM2 <- ECM[from == "male", .(
+  ari = sum(mn * popto),
+  ari.sd = ssum(sd * popto)
+),
+by = .(g_whoregion, acati, sex = to)
+]
+
+BRM2[, c("tot", "tot.sd") := .(sum(ari), ssum(ari.sd)), by = g_whoregion]
+BRM2[, c("fari", "fari.sd") :=
+  .(
+    ari / tot,
+    (ari / tot) * sqrt((ari.sd / ari)^2 + (tot.sd / tot)^2)
+  )]
+BRM2 <- merge(BRM2, regkey, by = "g_whoregion")
+BRM2$region <- factor(BRM2$region, levels = whozt, ordered = TRUE)
+BRM2$acati <- factor(BRM2$acati, levels = agz, ordered = TRUE)
+
+## both:
+BRM <- rbind(
+  BRM1[sex=='male', .(region, acat,
+    quantity = "transmission", from = "male",
+    value = ari, v.sd = ari.sd
+  )],
+  BRM2[sex=='male', .(region,
+    acat = acati,
+    quantity = "exposure", from = "male",
+    value = fari, v.sd = fari.sd
+  )]
+)
+BRM[!is.finite(v.sd), c("value", "v.sd") := 0.0]
+## males and all
+BRB <- rbind(BRT, BRM)
+
+TXTb <- dcast(BRB, region + acat + quantity ~ from, value.var = "value")
+TXTb[, txt := paste0(round(1e2 * male / all), "%")]
+TXTb[all == 0, txt := NA_character_]
+TXTb[, from := "male"]
+TXTb[, v.sd := 0.0]
+TXTb[, value := male]
+TXTb[, c("all", "male") := NULL]
+
+## plot:
+symbs <- c("\u25CF", "\u2642")
+GP <- ggplot(
+  BRB,
+  aes(acat, value,
+    col = quantity, lty = from, shape = from,
+    group = paste(region, quantity, from)
+  )
+) +
+  geom_line() +
+  geom_point(
+    size = I(3),
+    stroke = 3
+  ) +
+  scale_shape_manual(values = symbs) +
+  geom_ribbon(
+    aes(
+      ymin = value - 1.96 * v.sd,
+      ymax = value + 1.96 * v.sd,
+      fill = quantity, alpha = from
+    ),
+    col = NA
+  ) +
+  geom_errorbar(
+    data = BRB[from == "male"],
+    aes(
+      ymin = value - 1.96 * v.sd,
+      ymax = value + 1.96 * v.sd,
+      col = quantity
+    ), width = 0.25
+  ) +
+  ggrepel::geom_text_repel(
+    data = TXTb,
+    aes(acat,
+      value,
+      label = txt
+    ),
+    point.padding = 0.2,
+    ## min.segment.length = 0,
+    box.padding = 0.3,
+    size = 2.5
+  ) +
+  scale_alpha_manual(values = c(0.3, 0)) +
+  scale_color_manual(values = clz[cvz]) +
+  scale_fill_manual(values = clz[cvz]) +
+  facet_wrap(~region, scales = "free") +
+  theme_classic() +
+  ggpubr::grids() +
+  scale_y_continuous(label = percent) +
+  xlab("Age") +
+  ylab("Proportion of all exposure or exposure from each group") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic"), # , size = 12
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    legend.position = "top"
+  )
+ggsave(GP, file = here("output/ARIB_to_reg.png"), w = 10, h = 7)
+
