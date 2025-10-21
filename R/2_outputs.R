@@ -885,11 +885,11 @@ BRM2$acati <- factor(BRM2$acati, levels = agz, ordered = TRUE)
 
 ## both:
 BRM <- rbind(
-  BRM1[sex=='male', .(region, acat,
+  BRM1[sex == "male", .(region, acat,
     quantity = "transmission", from = "male",
     value = ari, v.sd = ari.sd
   )],
-  BRM2[sex=='male', .(region,
+  BRM2[sex == "male", .(region,
     acat = acati,
     quantity = "exposure", from = "male",
     value = fari, v.sd = fari.sd
@@ -906,6 +906,9 @@ TXTb[, from := "male"]
 TXTb[, v.sd := 0.0]
 TXTb[, value := male]
 TXTb[, c("all", "male") := NULL]
+
+
+
 
 ## plot:
 symbs <- c("\u25CF", "\u2642")
@@ -967,3 +970,68 @@ GP <- ggplot(
     legend.position = "top"
   )
 ggsave(GP, file = here("output/ARIB_to_reg.png"), w = 10, h = 7)
+
+
+## --- plot with numbers
+TXTc <- copy(TXTb)
+TXTc[, txt2 := paste0(txt)]## , "", symbs[2])]
+TXTc[is.na(txt), txt2 := NA_character_]
+TXTc[, value := NULL]
+MV <- BRB[from == "all"][, .(mv = max(value + 1.96 * v.sd)), by = .(region)]
+TXTc <- merge(TXTc, MV, by = "region")
+TXTc[, value := ifelse(quantity == "transmission", mv * 1.1, mv * 1.2)]
+
+
+GP <- ggplot(
+  BRB[from == "all"],
+  aes(acat, value,
+    col = quantity,
+    group = paste(region, quantity)
+  )
+) +
+  geom_line() +
+  geom_point() +
+  geom_ribbon(
+    aes(
+      ymin = value - 1.96 * v.sd,
+      ymax = value + 1.96 * v.sd,
+      fill = quantity
+    ),
+    col = NA, alpha = 0.3
+  ) +
+  geom_text(
+    data = TXTc,
+    aes(
+      acat, value,
+      col = quantity, label = txt2
+    ),
+    size = 3, show.legend = FALSE
+  ) +
+  geom_text(
+    data = TXTc,
+    aes(
+      8.5,
+      value,
+      col = quantity,
+      label = symbs[2]
+    ), show.legend = FALSE
+  ) +
+  scale_color_manual(values = clz[cvz]) +
+  scale_fill_manual(values = clz[cvz]) +
+  facet_wrap(~region, scales = "free") +
+  theme_classic() +
+  ggpubr::grids() +
+  scale_y_continuous(label = percent) +
+  xlab("Age") +
+  ylab("Proportion of all exposure to or transmission from each group") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.spacing = unit(2, "lines"), # or 3
+    strip.text = element_text(face = "italic"), # , size = 12
+    strip.background = element_blank(),
+    strip.placement = "outside",
+    legend.position = "top",
+    legend.title = element_blank()
+  )
+## GP
+ggsave(GP, file = here("output/ARIB_to_reg0.png"), w = 10, h = 7)
