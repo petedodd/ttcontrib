@@ -981,7 +981,22 @@ MV <- BRB[from == "all"][, .(mv = max(value + 1.96 * v.sd)), by = .(region)]
 TXTc <- merge(TXTc, MV, by = "region")
 TXTc[, value := ifelse(quantity == "transmission", mv * 1.1, mv * 1.2)]
 
+## --- modified version of main figure
+## for different point types
+BRB[
+  ,
+  pnttype := ifelse(
+    acat %in% c("0-4", "5-14") &
+      quantity == "transmission",
+    "b",
+    "a"
+  )
+]
+BRB$pnttype <- factor(BRB$pnttype)
 
+
+symbs <- c("\u25CF", "\u2642")
+cvz <- c(6, 7)
 GP <- ggplot(
   BRB[from == "all"],
   aes(acat, value,
@@ -990,7 +1005,8 @@ GP <- ggplot(
   )
 ) +
   geom_line() +
-  geom_point() +
+  geom_point(aes(shape = pnttype)) +
+  scale_shape_manual(values = c("a" = 19, "b" = 4)) +
   geom_ribbon(
     aes(
       ymin = value - 1.96 * v.sd,
@@ -1010,7 +1026,7 @@ GP <- ggplot(
   geom_text(
     data = TXTc,
     aes(
-      8.5,
+      8.7,
       value,
       col = quantity,
       label = symbs[2]
@@ -1022,8 +1038,10 @@ GP <- ggplot(
   theme_classic() +
   ggpubr::grids() +
   scale_y_continuous(label = percent) +
+  expand_limits(x = c(0, 8.9)) +
   xlab("Age") +
   ylab("Proportion of all exposure to or transmission from each group") +
+  guides(shape = "none") +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
     panel.spacing = unit(2, "lines"), # or 3
@@ -1033,5 +1051,10 @@ GP <- ggplot(
     legend.position = "top",
     legend.title = element_blank()
   )
+
 ## GP
+
 ggsave(GP, file = here("output/ARIB_to_reg0.png"), w = 10, h = 7)
+ggsave(GP,
+  file = here("output/figs/main_fig.pdf"), w = 10, h = 7, device = cairo_pdf
+)

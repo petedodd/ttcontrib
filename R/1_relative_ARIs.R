@@ -82,14 +82,15 @@ if (!file.exists(here("data/agz.Rdata"))) {
   save(agz, file = here("data/agz.Rdata"))
 }
 
-
 ## include sex also
 NS <- merge(N80, akey)
-NS <- NS[, .(pop.total = sum(PopTotal),
-             pop.female = sum(PopFemale),
-             pop.male = sum(PopMale)),
-  by = .(iso3, age_group)
-  ]
+NS <- NS[, .(
+  pop.total = sum(PopTotal),
+  pop.female = sum(PopFemale),
+  pop.male = sum(PopMale)
+),
+by = .(iso3, age_group)
+]
 
 ## join demography + TB
 EW <- dcast(E, iso3 + age_group ~ sex, value.var = c("TB", "TB.sd"))
@@ -250,6 +251,20 @@ CDR <- CD[, .(contacts = mean(ctx)),
 ] # regional average
 CDR[, acato := factor(acato, levels = agz, ordered = TRUE)]
 CDR[, acati := factor(acati, levels = agz, ordered = TRUE)]
+
+## plot WAIFW matrices
+GP <- ggplot(data = CDR, aes(x = acato, y = acati, fill = contacts)) +
+  geom_tile() +
+  scale_fill_viridis() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~g_whoregion) +
+  xlab("Age of contactor") +
+  ylab("Age of contactee") +
+  ggtitle("Step 2: Regional average WAIFW matrices")
+GP
+
+ggsave(GP, file = here("output/step2_ARI_WAIFW.png"), w = 12, h = 8)
+
 
 ## create and plot regional averages
 cdr <- CD[, .(
