@@ -1055,4 +1055,6 @@ GP <- ggplot(
 ## GP
 
 ggsave(GP, file = here("output/ARIB_to_reg0.png"), w = 10, h = 7)
-ggsave(GP, file = here("output/figs/main_fig.pdf"), w = 10, h = 7)
+ggsave(GP,
+  file = here("output/figs/main_fig.pdf"), w = 10, h = 7, device = cairo_pdf
+)
