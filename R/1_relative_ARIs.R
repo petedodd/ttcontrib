@@ -82,54 +82,6 @@ if (!file.exists(here("data/agz.Rdata"))) {
   save(agz, file = here("data/agz.Rdata"))
 }
 
-## ## summary(CD)
-
-## CD <- synthetic_contacts_2021[
-##   location_contact == "all",
-##   .(
-##     iso3 = iso3c, age_contactor,
-##     age_contactee = age_cotactee,
-##     ctx = mean_number_of_contacts
-##   )
-## ]
-
-
-## ## aggregating contacts
-## CD[, AO := gsub(" to ", "-", age_contactor)]
-## CD[, AI := gsub(" to ", "-", age_contactee)]
-## CD <- merge(CD, unique(akey[, .(cage, acato = acat)]),
-##   by.x = "AO", by.y = "cage",
-##   all.x = TRUE, all.y = FALSE
-## )
-## CD <- merge(CD, unique(akey[, .(cage, acati = acat)]),
-##   by.x = "AI", by.y = "cage",
-##   all.x = TRUE, all.y = FALSE
-##   )
-
-## CD <- CD[, .(ctx = sum(ctx)), by = .(iso3, acato, acati)]
-## CD <- merge(CD, whokey, by = "iso3") # regions
-
-
-## ## inspect
-## CDR <- CD[, .(contacts = mean(ctx)),
-##   by = .(g_whoregion, acato, acati)
-## ] # regional ave
-## CDR[, acato := factor(acato, levels = agz, ordered = TRUE)]
-## CDR[, acati := factor(acati, levels = agz, ordered = TRUE)]
-
-
-## GP <- ggplot(data = CDR, aes(x = acato, y = acati, fill = contacts)) +
-##   geom_tile() +
-##   scale_fill_viridis() +
-##   theme(legend.position = "bottom") +
-##   facet_wrap(~g_whoregion) +
-##   xlab("Age of contactor") +
-##   ylab("Age of contactee") +
-##   ggtitle("Step 2: Regional average contact patterns")
-## GP
-
-## ggsave(GP, file = here("plots/ARI_step2_contacts.png"), w = 12, h = 8)
-
 ## include sex also
 NS <- merge(N80, akey)
 NS <- NS[, .(
